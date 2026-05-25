@@ -1,0 +1,125 @@
+services:
+  # Database Service with pgvector support
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: siget-postgres
+    environment:
+      POSTGRES_DB: siget_db
+      POSTGRES_USER: siget_user
+      POSTGRES_PASSWORD: siget_secure_pwd_2026
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U siget_user -d siget_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - siget-network
+
+  # Redis for BullMQ processing, rate limiting, and WebSockets
+  redis:
+    image: redis:7-alpine
+    container_name: siget-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - siget-network
+
+  # S3 Compatible Object Storage (MinIO)
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: siget-minio
+    ports:
+      - "9000:9000"       # MinIO API Port
+      - "9001:9001"       # MinIO Console Port
+    environment:
+      MINIO_ROOT_USER: siget_admin
+      MINIO_ROOT_PASSWORD: minio_secure_pwd_2026
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - siget-network
+  # NextJS Web Client (configured for Turborepo dev)
+  web:
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+      target: runner
+    container_name: siget-web-client
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:4000/api
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=nextauth_secure_jwt_secret_2026_super_long
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+      - /usr/src/app/apps/web/.next
+    depends_on:
+      - api
+    networks:
+      - siget-network
+
+  # NestJS Backend API (configured for Turborepo dev)
+  api:
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile
+      target: runner
+    container_name: siget-api-backend
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://siget_user:siget_secure_pwd_2026@postgres:5432/siget_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=siget_admin
+      - MINIO_SECRET_KEY=minio_secure_pwd_2026
+      - JWT_SECRET=nestjs_passport_secure_jwt_secret_2026
+      - OPENAI_API_KEY=your_openai_api_key_here
+      - CROSSREF_MAILTO=academic.siget@universidad.edu
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - siget-network
+
+networks:
+  siget-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local

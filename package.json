@@ -1,0 +1,25 @@
+{
+  "name": "siget-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema Inteligente de Gestión y Evaluación de Tesis (SIGET)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "db:migrate": "npm run prisma:migrate -w apps/api",
+    "db:generate": "npm run prisma:generate -w apps/api"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.4"
+  },
+  "overrides": {
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "packageManager": "npm@10.8.2"
+}
